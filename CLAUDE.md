@@ -25,6 +25,9 @@ This project attacks the problem from multiple angles:
     find_fourth/  <----  4 graphs for n=13  --->+
     (SAT solver to find k-th arrangement
      given perfect (k-1) arrangements)
+
+    solver_general/
+    (general solver for any n,k on hex spiral)
 ```
 
 **Key insight**: The penny spiral (used in original problem) is just ONE maximal penny graph. To prove lower bounds, we must check ALL maximal penny graphs for that vertex count.
@@ -173,6 +176,36 @@ arr1: [0,8,15,9,16,12,10,5,13,2,6,3,7,14,11,1,4]
 arr2: [10,13,16,6,14,1,15,11,0,7,2,4,9,12,8,3,5]
 arr3: [11,4,7,5,9,6,8,16,3,10,15,12,2,14,0,13,1]
 ```
+
+---
+
+## solver_general/ - General Solver
+
+General-purpose solver for any n and k on the hexagon spiral graph. Uses backtracking with pruning.
+
+### Algorithm
+1. Fix arr0 = identity
+2. For each subsequent arrangement, backtrack through all permutations
+3. Prune branches that exceed max overlap (derived from min-edges constraint)
+4. For final arrangement, use doomed-pair check: if placing an item leaves an uncoverable pair with an already-placed item, skip it
+
+### Usage
+```bash
+cd solver_general
+go build -o solver.out solver.go
+./solver.out -n 12 -k 3 -workers 1
+```
+
+### Flags
+- `-n`: Number of items (default 17)
+- `-k`: Number of arrangements to find (default 4)
+- `-workers`: Parallel workers with different random seeds (default 8)
+
+### Results
+- **n=7 k=2**: No solution (proves k≥3 needed)
+- **n=7 k=3**: Solution found instantly
+- **n=12 k=3**: Solution found in ~20s
+- **n=13 k=3**: No solution in ~200ms (proves k≥4 needed)
 
 ---
 
