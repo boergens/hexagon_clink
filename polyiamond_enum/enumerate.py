@@ -213,15 +213,38 @@ def shape_to_ascii(shape: Polyiamond) -> str:
     return '\n'.join(''.join(row).rstrip() for row in grid)
 
 
+def polyiamond_to_graph(shape: Polyiamond) -> Tuple[Set[Vertex], Set[FrozenSet[Vertex]]]:
+    """Convert polyiamond to graph (vertices and edges)."""
+    vertices = set()
+    edges = set()
+
+    for tri in shape:
+        verts = list(tri)
+        for v in verts:
+            vertices.add(v)
+        # Add the 3 edges of this triangle
+        for i in range(3):
+            edge = frozenset([verts[i], verts[(i+1) % 3]])
+            edges.add(edge)
+
+    return vertices, edges
+
+
 def main():
     if len(sys.argv) < 2:
-        print(f"Usage: {sys.argv[0]} <n> [--show]")
+        print(f"Usage: {sys.argv[0]} <n> [--show] [--edges E]")
         print("  n: number of triangles")
         print("  --show: display ASCII art of each polyiamond")
+        print("  --edges E: filter to show only polyiamonds with E graph edges")
         sys.exit(1)
 
     n = int(sys.argv[1])
     show = '--show' in sys.argv
+
+    edge_filter = None
+    if '--edges' in sys.argv:
+        idx = sys.argv.index('--edges')
+        edge_filter = int(sys.argv[idx + 1])
 
     print(f"Enumerating polyiamonds with {n} triangles...")
     shapes = enumerate_polyiamonds(n)
@@ -229,13 +252,32 @@ def main():
     print(f"Found {len(shapes)} distinct polyiamond(s)")
 
     # Known values (OEIS A000577)
-    known = {1: 1, 2: 1, 3: 1, 4: 4, 5: 6, 6: 12, 7: 24, 8: 66, 9: 160, 10: 448}
+    known = {1: 1, 2: 1, 3: 1, 4: 3, 5: 4, 6: 12, 7: 24, 8: 66, 9: 160, 10: 448}
     if n in known:
         expected = known[n]
         status = "✓" if len(shapes) == expected else f"✗ (expected {expected})"
         print(f"Verification: {status}")
 
-    if show:
+    # Count edges for each polyiamond
+    edge_counts = {}
+    for shape in shapes:
+        _, edges = polyiamond_to_graph(shape)
+        num_edges = len(edges)
+        edge_counts[num_edges] = edge_counts.get(num_edges, 0) + 1
+
+    print(f"\nEdge count distribution:")
+    for e in sorted(edge_counts.keys()):
+        print(f"  {e} edges: {edge_counts[e]} polyiamond(s)")
+
+    if edge_filter is not None:
+        filtered = [s for s in shapes if len(polyiamond_to_graph(s)[1]) == edge_filter]
+        print(f"\nPolyiamonds with exactly {edge_filter} edges: {len(filtered)}")
+
+        if show:
+            for i, shape in enumerate(filtered, 1):
+                print(f"\n--- Polyiamond {i} ---")
+                print(shape_to_ascii(shape))
+    elif show:
         shapes_list = sorted(shapes, key=lambda s: sorted(tuple(sorted(tri)) for tri in s))
         for i, shape in enumerate(shapes_list, 1):
             print(f"\n--- Polyiamond {i} ---")

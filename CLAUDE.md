@@ -1,8 +1,12 @@
 # Penny Graph & Hexagon Clink Project
 
+## Coding Conventions
+
+- **Go binaries**: Always use `.out` extension when compiling: `go build -o foo.out foo.go`
+
 ## Overview
 
-This project has two related threads:
+This project has three related threads:
 
 ### 1. Penny Graph Enumeration
 Enumerating **penny graphs** (unit coin graphs) - graphs realizable by placing non-overlapping unit circles in 2D, where vertices are circle centers and edges connect touching circles.
@@ -50,6 +54,23 @@ Lower bound = ceil(pairs / edges)
 k arrangements where consecutive ones share **no edges** - maximizes coverage efficiency.
 
 For n=17: if we find perfect-3 (arr0, arr1, arr2 with zero overlap), we cover 3×36=108 pairs, leaving 28 for arr3.
+
+### 3. Polyiamond Enumeration
+Enumerating **polyiamonds** - shapes made of edge-connected equilateral triangles (OEIS A000577).
+
+Used to find unit-distance graph embeddings on the triangular lattice.
+
+| n triangles | polyiamonds |
+|-------------|-------------|
+| 1-3 | 1 |
+| 4 | 3 |
+| 5 | 4 |
+| 6 | 12 |
+| 7 | 24 |
+| 8 | 66 |
+| 9 | 160 |
+| 10 | 448 |
+| 13 | 9,235 |
 
 ## Pipeline
 
@@ -186,3 +207,45 @@ arr3: [8,14,11,3,5,6,7,12,2,1,13,0,9,4,10]
 cd find_fourth/plot
 ../../../hexagon_clink/venv/bin/python plot_n15_solution.py
 ```
+
+---
+
+## polyiamond_enum/ - Polyiamond Enumeration
+
+Enumerate polyiamonds and convert to graphs for finding unit-distance embeddings.
+
+### Tools
+
+| Tool | Description |
+|------|-------------|
+| `enumerate.py` | Python implementation (slower, good for small n) |
+| `enumerate.go` | Go implementation (fast, multithreaded) |
+| `plot_polyiamonds.py` | Plot graphs with triangular lattice embedding |
+
+### Usage
+```bash
+cd polyiamond_enum
+
+# Python version
+./venv/bin/python enumerate.py 10 --show
+
+# Go version (faster)
+go build -o enumerate_fast.out enumerate.go
+./enumerate_fast.out -min 13 -max 14 -v 13 -e 26 -coords output.txt -g6 output.g6
+
+# Plot with isomorphism filtering
+./venv/bin/python plot_polyiamonds.py output.txt output.png --unique
+```
+
+### Key Options (Go version)
+- `-min`, `-max`: Triangle count range
+- `-v`, `-e`: Filter by vertex/edge count
+- `-g6`: Output graph6 format
+- `-coords`: Output vertex coordinates for plotting
+- `-w`: Number of workers (default: CPU count)
+
+### Results
+
+Polyiamonds with **13 vertices and 26 edges**: 4 unique non-isomorphic graphs
+- Found from polyiamonds with 13-14 triangles
+- All embeddable on triangular lattice with unit-distance edges

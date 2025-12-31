@@ -20,5 +20,12 @@ test_*.g6
 __pycache__/
 *.pyc
 
+# Virtual environments
+venv/
+
+# Temporary/intermediate files
+polyiamond_coords.txt
+extract_coords.go
+
 # find_fourth data (large)
 find_fourth/output_*/
