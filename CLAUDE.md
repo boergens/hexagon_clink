@@ -243,6 +243,26 @@ arr4: [15,0,16,18,8,17,9,13,5,12,6,1,10,2,4,3,7,14,11]
 
 ---
 
+## solver_20/ - Specialized n=20 Solver
+
+Specialized solver for n=20, k=5 with optimization for the low-degree slot.
+
+### Special Slot Optimization
+Slot 19 has only degree 2 (neighbors: 7, 18). At the last arrangement level (arr4), slot 19 is filled first, and only items needing ≤2 more partners are tried there. This prunes the search space significantly.
+
+### Usage
+```bash
+cd solver_20
+go build -o solver.out solver.go
+./solver.out -workers 8 -max-overlap 0,0,10
+```
+
+### Flags
+- `-workers`: Parallel workers with different random seeds (default 8)
+- `-max-overlap`: Comma-separated max overlap for arr1, arr2, arr3 (arr4 must cover remaining pairs exactly)
+
+---
+
 ## plotting/ - Solution Visualization
 
 Visualize arrangements on the penny spiral graph.
