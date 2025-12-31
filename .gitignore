@@ -1,14 +1,5 @@
 # Binaries
-penny_enum/canonicalize
-penny_enum/filter_maximal
-penny_enum/generate_edges
-penny_enum/pipeline_nauty
-penny_enum/refine_hash
-penny_enum/verify_penny
-penny_enum/wl_refine
-penny_enum/explore_nauty/convert
-penny_enum/explore_nauty/bench_*
-penny_enum/explore_nauty/compare_all
+*.out
 
 # Data files
 *.bin
@@ -29,6 +20,5 @@ test_*.g6
 __pycache__/
 *.pyc
 
-# find_fourth
-find_fourth/find_fourth
+# find_fourth data (large)
 find_fourth/output_*/

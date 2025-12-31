@@ -127,14 +127,14 @@ Results in `penny_enum/n*_maximal_penny.g6` and `penny_enum/*.png`
 cd penny_enum
 
 # Build tools
-go build -o pipeline_nauty pipeline_nauty.go
-go build -o verify_penny verify_penny.go
-go build -o filter_maximal filter_maximal.go
+go build -o pipeline_nauty.out pipeline_nauty.go
+go build -o verify_penny.out verify_penny.go
+go build -o filter_maximal.out filter_maximal.go
 
 # Run full pipeline for n=8
-./pipeline_nauty -n 8 -out n8_unique.g6
-./verify_penny -n 8 -in n8_unique.g6 -out n8_penny.g6
-./filter_maximal -n 8 -out n8_maximal.g6 n8_penny.g6
+./pipeline_nauty.out -n 8 -out n8_unique.g6
+./verify_penny.out -n 8 -in n8_unique.g6 -out n8_penny.g6
+./filter_maximal.out -n 8 -out n8_maximal.g6 n8_penny.g6
 
 # Plot results (requires scipy, matplotlib)
 python3 plot_penny.py 8 n8_maximal.g6 n8_maximal.png
@@ -162,9 +162,9 @@ Format: `arr1[0],arr1[1],...;arr2[0],arr2[1],...` (arr0 is always identity)
 ### Usage
 ```bash
 cd find_fourth
-go build -o find_fourth .
-./find_fourth -n 15 -in output_15 -workers 1   # test with n=15
-./find_fourth -n 17 -in output_17 -workers 1   # full n=17 search
+go build -o find_fourth.out .
+./find_fourth.out -n 15 -in output_15 -workers 1   # test with n=15
+./find_fourth.out -n 17 -in output_17 -workers 1   # full n=17 search
 ```
 
 **Note**: gophersat has threading bugs, must use `-workers 1`
