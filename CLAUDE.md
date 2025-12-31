@@ -3,6 +3,7 @@
 ## Coding Conventions
 
 - **Go binaries**: Always use `.out` extension when compiling: `go build -o foo.out foo.go`
+- **Python**: Use the project venv: `source venv/bin/activate` (has matplotlib, numpy)
 
 ## Overview
 
@@ -55,8 +56,7 @@ If `k * edges = pairs` exactly, then k arrangements work **only if** they have z
 | 3 | 1 | trivial |
 | 4-6 | 2 | proven |
 | 7-12 | 3 | proven |
-| 13-16 | 4 | **proven** (n=13 via solver_k) |
-| 17 | 4 or 5? | in progress |
+| 13-17 | 4 | **proven** (n=13 via solver_k, n=17 via find_fourth) |
 
 **n=13 proof**: 78 pairs, 26 edges per graph, so 3 arrangements need exactly 78 edges with zero overlap. `solver_k/` exhaustively checks all 4 maximal penny graphs in all configurations - no valid 3-arrangement exists.
 
@@ -166,7 +166,30 @@ arr2: [12,14,9,5,8,0,10,1,3,6,11,13,7,2,4]
 arr3: [8,14,11,3,5,6,7,12,2,1,13,0,9,4,10]
 ```
 
-**n=17**: In progress (~26M candidates)
+**n=17**: Solution found at candidate 317544 (4 arrangements cover all 136 pairs)
+```
+arr0: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]
+arr1: [0,8,15,9,16,12,10,5,13,2,6,3,7,14,11,1,4]
+arr2: [10,13,16,6,14,1,15,11,0,7,2,4,9,12,8,3,5]
+arr3: [11,4,7,5,9,6,8,16,3,10,15,12,2,14,0,13,1]
+```
+
+---
+
+## plotting/ - Solution Visualization
+
+Visualize arrangements on the penny spiral graph.
+
+### Usage
+```bash
+./venv/bin/python plotting/plot_n17_solution.py
+```
+
+### Files
+- `hex_spiral.py` - Builds penny spiral coordinates and adjacencies
+- `visualize_solution.py` - Matplotlib visualization of arrangements
+- `plot_n17_solution.py` - Plot the n=17 solution
+- `solution_17.png` - Generated visualization
 
 ---
 
