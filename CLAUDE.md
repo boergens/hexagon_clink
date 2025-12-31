@@ -60,8 +60,11 @@ If `k * edges = pairs` exactly, then k arrangements work **only if** they have z
 | 4-6 | 2 | proven |
 | 7-12 | 3 | proven |
 | 13-17 | 4 | **proven** (n=13 via solver_k, n=17 via find_fourth) |
+| 19 | 5 | **proven** (via solver_19 with hexagonal symmetry) |
 
 **n=13 proof**: 78 pairs, 26 edges per graph, so 3 arrangements need exactly 78 edges with zero overlap. `solver_k/` exhaustively checks all 4 maximal penny graphs in all configurations - no valid 3-arrangement exists.
+
+**n=19 proof**: 171 pairs, 42 edges per graph. Since 19 is a hexagonal number (1+6+12), symmetry reduces the search space by restricting item 0 to 4 representative positions.
 
 ---
 
@@ -200,12 +203,43 @@ go build -o solver.out solver.go
 - `-n`: Number of items (default 17)
 - `-k`: Number of arrangements to find (default 4)
 - `-workers`: Parallel workers with different random seeds (default 8)
+- `-max-overlap`: Comma-separated max overlap per level (e.g., '5,5,5')
 
 ### Results
 - **n=7 k=2**: No solution (proves k≥3 needed)
 - **n=7 k=3**: Solution found instantly
 - **n=12 k=3**: Solution found in ~20s
 - **n=13 k=3**: No solution in ~200ms (proves k≥4 needed)
+
+---
+
+## solver_19/ - Specialized n=19 Solver
+
+Specialized solver for n=19, k=5 exploiting hexagonal symmetry.
+
+### Symmetry Breaking
+Since 19 is a hexagonal number (1+6+12), the hex spiral has 6-fold symmetry. Item 0 is restricted to 4 representative positions:
+- Position 0: center
+- Position 1: middle ring
+- Position 7: outer ring corner
+- Position 8: outer ring edge-center
+
+### Usage
+```bash
+cd solver_19
+go build -o solver.out solver.go
+./solver.out -workers 8 -max-overlap 0,0,12
+```
+
+### Results
+**n=19**: Solution found (5 arrangements cover all 171 pairs)
+```
+arr0: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]
+arr1: [8,16,2,5,13,15,10,14,0,7,4,12,9,18,1,11,17,3,6]
+arr2: [4,18,10,17,1,16,11,0,15,12,7,13,2,14,5,3,9,6,8]
+arr3: [1,10,12,18,2,15,7,5,0,17,8,14,3,16,13,6,4,9,11]
+arr4: [15,0,16,18,8,17,9,13,5,12,6,1,10,2,4,3,7,14,11]
+```
 
 ---
 

@@ -1,0 +1,405 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"math"
+	"math/rand"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+)
+
+var hexDirs = [6][2]float64{
+	{1.5, 0}, {0.75, 1.3}, {-0.75, 1.3},
+	{-1.5, 0}, {-0.75, -1.3}, {0.75, -1.3},
+}
+
+type Edge struct{ a, b int }
+
+func buildSpiral(n int) []Edge {
+	if n < 2 {
+		return nil
+	}
+
+	positions := make([][2]float64, n)
+	edges := make([]Edge, 0, n*3)
+	positions[0] = [2]float64{0, 0}
+
+	for node := 1; node < n; node++ {
+		prev := positions[node-1]
+		var bestPos [2]float64
+		bestContacts, bestDist := -1, 1e9
+
+		for d := 0; d < 6; d++ {
+			cand := [2]float64{prev[0] + hexDirs[d][0], prev[1] + hexDirs[d][1]}
+
+			occupied := false
+			for i := 0; i < node; i++ {
+				if math.Abs(cand[0]-positions[i][0]) < 0.1 && math.Abs(cand[1]-positions[i][1]) < 0.1 {
+					occupied = true
+					break
+				}
+			}
+			if occupied {
+				continue
+			}
+
+			contacts := 0
+			for i := 0; i < node; i++ {
+				for dd := 0; dd < 6; dd++ {
+					neighbor := [2]float64{positions[i][0] + hexDirs[dd][0], positions[i][1] + hexDirs[dd][1]}
+					if math.Abs(cand[0]-neighbor[0]) < 0.1 && math.Abs(cand[1]-neighbor[1]) < 0.1 {
+						contacts++
+						break
+					}
+				}
+			}
+
+			dist := cand[0]*cand[0] + cand[1]*cand[1]
+			if contacts > bestContacts || (contacts == bestContacts && dist < bestDist) {
+				bestPos, bestContacts, bestDist = cand, contacts, dist
+			}
+		}
+
+		positions[node] = bestPos
+
+		for i := 0; i < node; i++ {
+			for d := 0; d < 6; d++ {
+				neighbor := [2]float64{positions[i][0] + hexDirs[d][0], positions[i][1] + hexDirs[d][1]}
+				if math.Abs(bestPos[0]-neighbor[0]) < 0.1 && math.Abs(bestPos[1]-neighbor[1]) < 0.1 {
+					edges = append(edges, Edge{i, node})
+					break
+				}
+			}
+		}
+	}
+	return edges
+}
+
+type Solver struct {
+	n, k          int
+	numPairs      int
+	numEdges      int
+	edges         []Edge
+	slotAdj       [][]int
+	remEdges      []int
+	pairTable     [][]int
+	maxOverlapArr []int // per-level overlap limits, nil means use dynamic calculation
+
+	solution      [][]int
+	found         int32
+	printedLevel  []int32 // track if we've printed first solution at each level
+	mu            sync.Mutex
+}
+
+func NewSolver(n, k int) *Solver {
+	edges := buildSpiral(n)
+
+	slotAdj := make([][]int, n)
+	for s := 0; s < n; s++ {
+		for _, e := range edges {
+			if e.a == s && e.b < s {
+				slotAdj[s] = append(slotAdj[s], e.b)
+			} else if e.b == s && e.a < s {
+				slotAdj[s] = append(slotAdj[s], e.a)
+			}
+		}
+	}
+
+	remEdges := make([]int, n+1)
+	for slot := 0; slot <= n; slot++ {
+		for _, e := range edges {
+			if e.a >= slot || e.b >= slot {
+				remEdges[slot]++
+			}
+		}
+	}
+
+	pairTable := make([][]int, n)
+	for a := 0; a < n; a++ {
+		pairTable[a] = make([]int, n)
+		for b := 0; b < n; b++ {
+			if a < b {
+				pairTable[a][b] = a*n - a*(a+1)/2 + (b - a - 1)
+			} else if b < a {
+				pairTable[a][b] = b*n - b*(b+1)/2 + (a - b - 1)
+			}
+		}
+	}
+
+	return &Solver{
+		n:            n,
+		k:            k,
+		numPairs:     n * (n - 1) / 2,
+		numEdges:     len(edges),
+		edges:        edges,
+		slotAdj:      slotAdj,
+		remEdges:     remEdges,
+		pairTable:    pairTable,
+		solution:     make([][]int, k),
+		printedLevel: make([]int32, k),
+	}
+}
+
+func (s *Solver) pairIndex(a, b int) int {
+	return s.pairTable[a][b]
+}
+
+func (s *Solver) SetMaxOverlap(limits []int) {
+	s.maxOverlapArr = limits
+}
+
+func (s *Solver) solve(level int, covered []bool, coveredCount int, parentArrs [][]int, rng *rand.Rand) {
+	if atomic.LoadInt32(&s.found) != 0 {
+		return
+	}
+
+	remaining := s.k - level - 1
+	missing := s.numPairs - coveredCount
+
+	if missing > remaining*s.numEdges {
+		return
+	}
+
+	// Calculate max overlap: use explicit limit if provided, otherwise dynamic
+	var maxOverlap int
+	if s.maxOverlapArr != nil && level < len(s.maxOverlapArr) {
+		maxOverlap = s.maxOverlapArr[level]
+	} else {
+		minNewEdges := (missing + remaining - 1) / remaining
+		maxOverlap = s.numEdges - minNewEdges
+	}
+
+	arr := make([]int, s.n)
+	used := make([]bool, s.n)
+	usedItems := make([]int, 0, s.n)
+	coveredSet := make([]bool, s.numPairs)
+	copy(coveredSet, covered)
+
+	order := make([]int, s.n)
+	for i := 0; i < s.n; i++ {
+		order[i] = i
+	}
+	rng.Shuffle(len(order), func(i, j int) { order[i], order[j] = order[j], order[i] })
+
+	var enumerate func(slot, overlap, localCovered int)
+	enumerate = func(slot, overlap, localCovered int) {
+		if atomic.LoadInt32(&s.found) != 0 {
+			return
+		}
+
+		missingNow := s.numPairs - localCovered
+		maxPossible := s.remEdges[slot] + (remaining-1)*s.numEdges
+		if missingNow > maxPossible {
+			return
+		}
+
+		if slot == s.n {
+			arrCopy := make([]int, s.n)
+			copy(arrCopy, arr)
+			coveredCopy := make([]bool, s.numPairs)
+			copy(coveredCopy, coveredSet)
+
+			newParentArrs := append(parentArrs, arrCopy)
+
+			// Print first valid arrangement at this level
+			if atomic.CompareAndSwapInt32(&s.printedLevel[level], 0, 1) {
+				newEdges := localCovered - coveredCount
+				fmt.Printf("First valid arr%d: %v (overlap=%d, new=%d, covered=%d/%d)\n",
+					level+1, arrCopy, s.numEdges-newEdges, newEdges, localCovered, s.numPairs)
+			}
+
+			if level == s.k-2 {
+				if localCovered == s.numPairs {
+					s.mu.Lock()
+					if atomic.LoadInt32(&s.found) == 0 {
+						for i, perm := range newParentArrs {
+							s.solution[i+1] = perm
+						}
+						atomic.StoreInt32(&s.found, 1)
+					}
+					s.mu.Unlock()
+				}
+			} else {
+				s.solve(level+1, coveredCopy, localCovered, newParentArrs, rng)
+			}
+			return
+		}
+
+		for _, item := range order {
+			if atomic.LoadInt32(&s.found) != 0 {
+				return
+			}
+			if used[item] {
+				continue
+			}
+
+			// Symmetry breaking: item 0 can only go to representative positions
+			if item == 0 && !item0AllowedSlots[slot] {
+				continue
+			}
+
+			newOverlap := 0
+			var newPairs []int
+			for _, adjSlot := range s.slotAdj[slot] {
+				adjItem := arr[adjSlot]
+				pi := s.pairIndex(item, adjItem)
+				if coveredSet[pi] {
+					newOverlap++
+				} else {
+					newPairs = append(newPairs, pi)
+				}
+			}
+
+			if overlap+newOverlap > maxOverlap {
+				continue
+			}
+
+			if remaining == 1 {
+				doomed := false
+				for _, other := range usedItems {
+					pi := s.pairIndex(item, other)
+					if coveredSet[pi] {
+						continue
+					}
+					found := false
+					for _, cpi := range newPairs {
+						if cpi == pi {
+							found = true
+							break
+						}
+					}
+					if !found {
+						doomed = true
+						break
+					}
+				}
+				if doomed {
+					continue
+				}
+			}
+
+			arr[slot] = item
+			used[item] = true
+			usedItems = append(usedItems, item)
+			for _, pi := range newPairs {
+				coveredSet[pi] = true
+			}
+
+			enumerate(slot+1, overlap+newOverlap, localCovered+len(newPairs))
+
+			used[item] = false
+			usedItems = usedItems[:len(usedItems)-1]
+			for _, pi := range newPairs {
+				coveredSet[pi] = false
+			}
+		}
+	}
+
+	enumerate(0, 0, coveredCount)
+}
+
+func (s *Solver) Solve(numWorkers int) bool {
+	arr0 := make([]int, s.n)
+	for i := 0; i < s.n; i++ {
+		arr0[i] = i
+	}
+	s.solution[0] = arr0
+
+	covered := make([]bool, s.numPairs)
+	coveredCount := 0
+	for _, e := range s.edges {
+		pi := s.pairIndex(e.a, e.b)
+		if !covered[pi] {
+			covered[pi] = true
+			coveredCount++
+		}
+	}
+
+	if s.k == 1 {
+		return coveredCount == s.numPairs
+	}
+
+	var wg sync.WaitGroup
+	for w := 0; w < numWorkers; w++ {
+		wg.Add(1)
+		go func(seed int64) {
+			defer wg.Done()
+			rng := rand.New(rand.NewSource(seed))
+			s.solve(0, covered, coveredCount, nil, rng)
+		}(time.Now().UnixNano() + int64(w)*12345)
+	}
+	wg.Wait()
+
+	return atomic.LoadInt32(&s.found) != 0
+}
+
+func parseOverlapLimits(s string) ([]int, error) {
+	if s == "" {
+		return nil, nil
+	}
+	parts := strings.Split(s, ",")
+	limits := make([]int, len(parts))
+	for i, p := range parts {
+		v, err := strconv.Atoi(strings.TrimSpace(p))
+		if err != nil {
+			return nil, fmt.Errorf("invalid overlap limit %q: %v", p, err)
+		}
+		limits[i] = v
+	}
+	return limits, nil
+}
+
+// Allowed positions for item 0 due to hexagonal symmetry (n=19)
+// Position 0: center
+// Position 1: middle ring representative
+// Position 7: outer ring corner representative
+// Position 8: outer ring edge-center representative
+var item0AllowedSlots = map[int]bool{0: true, 1: true, 7: true, 8: true}
+
+const n = 19
+const k = 5
+
+func main() {
+	workers := flag.Int("workers", 8, "Number of parallel workers")
+	maxOverlap := flag.String("max-overlap", "0,0,12", "Comma-separated max overlap per level")
+	flag.Parse()
+
+	fmt.Printf("Searching for %d arrangements of %d items (hexagonal symmetry)\n", k, n)
+
+	solver := NewSolver(n, k)
+
+	overlapLimits, err := parseOverlapLimits(*maxOverlap)
+	if err != nil {
+		fmt.Printf("Error parsing max-overlap: %v\n", err)
+		return
+	}
+	if overlapLimits != nil {
+		solver.SetMaxOverlap(overlapLimits)
+		fmt.Printf("Max overlap limits: %v\n", overlapLimits)
+	}
+
+	fmt.Printf("Edges per arrangement: %d, Total pairs: %d\n", solver.numEdges, solver.numPairs)
+	fmt.Printf("Lower bound: ceil(%d/%d) = %d arrangements\n",
+		solver.numPairs, solver.numEdges, (solver.numPairs+solver.numEdges-1)/solver.numEdges)
+	fmt.Printf("Item 0 restricted to slots: 0, 1, 7, 8\n")
+	fmt.Printf("Workers: %d\n\n", *workers)
+
+	start := time.Now()
+	found := solver.Solve(*workers)
+	elapsed := time.Since(start)
+
+	if found {
+		fmt.Println("\n*** SOLUTION FOUND ***")
+		for i, arr := range solver.solution {
+			fmt.Printf("  Arr%d: %v\n", i, arr)
+		}
+	} else {
+		fmt.Println("\nNo solution found.")
+	}
+
+	fmt.Printf("\nTime: %v\n", elapsed.Round(time.Millisecond))
+}
