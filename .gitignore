@@ -1,20 +1,23 @@
 # Binaries
-canonicalize
-filter_maximal
-generate_edges
-pipeline_nauty
-refine_hash
-verify_penny
-wl_refine
-explore_nauty/convert
-explore_nauty/bench_*
-explore_nauty/compare_all
+penny_enum/canonicalize
+penny_enum/filter_maximal
+penny_enum/generate_edges
+penny_enum/pipeline_nauty
+penny_enum/refine_hash
+penny_enum/verify_penny
+penny_enum/wl_refine
+penny_enum/explore_nauty/convert
+penny_enum/explore_nauty/bench_*
+penny_enum/explore_nauty/compare_all
 
 # Data files
 *.bin
 *.g6
-!explore_nauty/*_penny.g6
-!explore_nauty/*_unique.g6
+!penny_enum/explore_nauty/*_penny.g6
+!penny_enum/explore_nauty/*_unique.g6
+!penny_enum/n*_penny.g6
+!penny_enum/n*_unique.g6
+!penny_enum/n*_maximal_penny.g6
 
 # Temp and output
 tmp_nauty/
@@ -23,6 +26,9 @@ test_*.g6
 
 # System
 .DS_Store
+__pycache__/
+*.pyc
 
-# Other projects
-find_fourth/
+# find_fourth
+find_fourth/find_fourth
+find_fourth/output_*/

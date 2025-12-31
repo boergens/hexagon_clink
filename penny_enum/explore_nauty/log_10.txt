@@ -1,0 +1,17 @@
+[edges=10] Starting...
+[edges=10] Generating n8_10edges.bin...
+=== Generating n=8 candidates with 10 edges ===
+Max possible edges: 28, bytes per graph: 4
+
+  Processed 10M, written 7777442...
+
+Done in 5.43414275s
+Total graphs checked: 13123110
+Candidates written: 10076640
+File size: 38.4 MB
+[edges=10] Converting to g6...
+Read 10076640 graphs
+Wrote 10076640 graphs to explore_nauty/n8_10.g6 in graph6 format
+[edges=10] Input:  10076640 graphs
+[edges=10] Running shortg...
+[edges=10] Done:      463 unique in 7s

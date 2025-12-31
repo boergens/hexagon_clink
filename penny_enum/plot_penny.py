@@ -137,6 +137,7 @@ def main():
             degrees[b] += 1
 
         ax.set_aspect('equal')
+        ax.margins(0.15)  # Add 15% padding around the graph
         ax.set_title(f"{len(edges)}e, deg={sorted(degrees, reverse=True)}", fontsize=8)
         ax.axis('off')
 
