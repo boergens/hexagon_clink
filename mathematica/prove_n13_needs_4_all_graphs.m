@@ -1,347 +1,242 @@
 (* ============================================================== *)
 (* HEXAGON CLINK: Proving 3 arrangements are insufficient for n=13 *)
-(* COMPLETE VERSION: Tests all 4 maximal penny graphs              *)
+(* v4: Simple approach - iterate over 20 combinations, run v1 logic *)
 (* ============================================================== *)
 
-(*
-   PROBLEM: We have 13 items. We want to arrange them on a hexagonal
-   grid multiple times, so that every pair of items is adjacent at
-   least once across all arrangements.
-
-   QUESTION: Can we do this with just 3 arrangements?
-
-   THE KEY INSIGHT:
-   ---------------
-   - Number of pairs we need to cover: C(13,2) = 78
-   - Number of edges in ANY maximal 13-node penny graph: 26
-   - Total edge-slots in 3 arrangements: 3 * 26 = 78
-
-   The numbers match EXACTLY! Zero overlap allowed.
-
-   IMPORTANT: There are exactly 4 non-isomorphic maximal penny graphs
-   on 13 vertices (found via polyiamond enumeration). We must test
-   ALL combinations of graphs for arr0, arr1, arr2.
-
-   Total graph combinations: 4 * 4 * 4 = 64
-*)
-
-(* ------------------------------------------------------------ *)
-(* STEP 1: Define all 4 maximal penny graphs on 13 vertices      *)
-(* ------------------------------------------------------------ *)
-
-(* These were found via polyiamond enumeration and verified as
-   the complete set of non-isomorphic maximal penny graphs on
-   13 vertices with 26 edges. *)
-
-(* Graph 1: 13 vertices, 26 edges *)
-graph1Edges = {
-  {2, 3}, {1, 4}, {0, 6}, {5, 6}, {3, 7}, {5, 7},
-  {2, 8}, {4, 8}, {0, 9}, {1, 9}, {6, 9}, {1, 10},
-  {4, 10}, {8, 10}, {9, 10}, {5, 11}, {6, 11}, {7, 11},
-  {9, 11}, {10, 11}, {2, 12}, {3, 12}, {7, 12}, {8, 12},
-  {10, 12}, {11, 12}
+(* All 4 maximal penny graphs on 13 vertices *)
+allGraphEdges = {
+  (* Graph A = SPIRAL (good node ordering: node 0 has degree 6) *)
+  {{0, 1}, {0, 2}, {0, 3}, {0, 4}, {0, 5}, {0, 6}, {1, 2}, {1, 6}, {1, 7}, {1, 8}, {1, 9}, {2, 3}, {2, 9}, {2, 10}, {2, 11}, {3, 4}, {3, 11}, {3, 12}, {4, 5}, {5, 6}, {6, 7}, {7, 8}, {8, 9}, {9, 10}, {10, 11}, {11, 12}},
+  (* Graph B *)
+  {{1, 3}, {2, 4}, {0, 5}, {0, 6}, {5, 6}, {3, 7}, {6, 7}, {4, 8}, {5, 8}, {1, 9}, {2, 9}, {5, 10}, {6, 10}, {7, 10}, {8, 10}, {1, 11}, {3, 11}, {7, 11}, {9, 11}, {10, 11}, {2, 12}, {4, 12}, {8, 12}, {9, 12}, {10, 12}, {11, 12}},
+  (* Graph C *)
+  {{0, 3}, {1, 4}, {3, 5}, {4, 6}, {2, 7}, {5, 7}, {2, 8}, {6, 8}, {0, 9}, {1, 9}, {0, 10}, {3, 10}, {5, 10}, {7, 10}, {9, 10}, {1, 11}, {4, 11}, {6, 11}, {8, 11}, {9, 11}, {2, 12}, {7, 12}, {8, 12}, {9, 12}, {10, 12}, {11, 12}},
+  (* Graph D *)
+  {{0, 2}, {1, 3}, {1, 4}, {0, 5}, {2, 6}, {4, 7}, {3, 8}, {6, 8}, {5, 9}, {7, 9}, {0, 10}, {2, 10}, {5, 10}, {6, 10}, {9, 10}, {1, 11}, {3, 11}, {4, 11}, {7, 11}, {8, 11}, {6, 12}, {7, 12}, {8, 12}, {9, 12}, {10, 12}, {11, 12}}
 };
+graphNames = {"A", "B", "C", "D"};
 
-(* Graph 2: 13 vertices, 26 edges *)
-graph2Edges = {
-  {1, 3}, {2, 4}, {0, 5}, {0, 6}, {5, 6}, {3, 7},
-  {6, 7}, {4, 8}, {5, 8}, {1, 9}, {2, 9}, {5, 10},
-  {6, 10}, {7, 10}, {8, 10}, {1, 11}, {3, 11}, {7, 11},
-  {9, 11}, {10, 11}, {2, 12}, {4, 12}, {8, 12}, {9, 12},
-  {10, 12}, {11, 12}
-};
-
-(* Graph 3: 13 vertices, 26 edges *)
-graph3Edges = {
-  {0, 3}, {1, 4}, {3, 5}, {4, 6}, {2, 7}, {5, 7},
-  {2, 8}, {6, 8}, {0, 9}, {1, 9}, {0, 10}, {3, 10},
-  {5, 10}, {7, 10}, {9, 10}, {1, 11}, {4, 11}, {6, 11},
-  {8, 11}, {9, 11}, {2, 12}, {7, 12}, {8, 12}, {9, 12},
-  {10, 12}, {11, 12}
-};
-
-(* Graph 4: 13 vertices, 26 edges *)
-graph4Edges = {
-  {0, 2}, {1, 3}, {1, 4}, {0, 5}, {2, 6}, {4, 7},
-  {3, 8}, {6, 8}, {5, 9}, {7, 9}, {0, 10}, {2, 10},
-  {5, 10}, {6, 10}, {9, 10}, {1, 11}, {3, 11}, {4, 11},
-  {7, 11}, {8, 11}, {6, 12}, {7, 12}, {8, 12}, {9, 12},
-  {10, 12}, {11, 12}
-};
-
-allGraphs = {graph1Edges, graph2Edges, graph3Edges, graph4Edges};
-numGraphs = 4;
 numItems = 13;
 numEdges = 26;
+totalPairs = numItems * (numItems - 1) / 2;  (* 78 *)
 
 Print["============================================"];
-Print["COMPLETE PROOF: Testing all 4 maximal penny graphs"];
+Print["n=13 PROOF (v4 - simple iteration)"];
 Print["============================================"];
 Print[""];
-Print["Number of maximal penny graphs on 13 vertices: ", numGraphs];
-Print["Each graph has ", numEdges, " edges"];
+Print["Testing all 20 shape combinations (shape0 <= shape1 <= shape2)"];
 Print[""];
 
-(* The crucial arithmetic *)
-totalPairs = numItems * (numItems - 1) / 2;
-totalSlots = 3 * numEdges;
-
-Print["Pairs to cover:     ", totalPairs];
-Print["Slots available:    3 * ", numEdges, " = ", totalSlots];
-Print[""];
-Print["EXACTLY EQUAL: Every edge must cover a unique pair."];
-Print["Zero overlap allowed between ANY two arrangements."];
-Print[""];
-Print["Graph combinations to test: ", numGraphs, "^3 = ", numGraphs^3];
-Print[""];
-
-(* ------------------------------------------------------------ *)
-(* STEP 2: Precompute neighbor lists for each graph             *)
-(* ------------------------------------------------------------ *)
-
-(* For each graph, build a neighbor lookup table *)
-buildNeighbors[edges_] := Module[{neighbors, pos1, pos2},
-  neighbors = Table[{}, {numItems}];
-  For[e = 1, e <= Length[edges], e++,
-    pos1 = edges[[e, 1]];
-    pos2 = edges[[e, 2]];
-    AppendTo[neighbors[[pos1 + 1]], pos2];
-    AppendTo[neighbors[[pos2 + 1]], pos1];
+(* Generate 20 combinations *)
+combos = {};
+For[s0 = 1, s0 <= 4, s0++,
+  For[s1 = s0, s1 <= 4, s1++,
+    For[s2 = s1, s2 <= 4, s2++,
+      AppendTo[combos, {s0, s1, s2}];
+    ];
   ];
+];
+
+Print["Combinations: ", Length[combos]];
+Print[""];
+
+(* Helper: build neighbor list *)
+buildNeighbors[edges_] := Module[{neighbors},
+  neighbors = Table[{}, {numItems}];
+  Do[
+    AppendTo[neighbors[[edges[[e, 1]] + 1]], edges[[e, 2]]];
+    AppendTo[neighbors[[edges[[e, 2]] + 1]], edges[[e, 1]]];
+  , {e, Length[edges]}];
   neighbors
 ];
 
-allNeighbors = Map[buildNeighbors, allGraphs];
-Print["Neighbor lists built for all graphs."];
-Print[""];
-
-(* ------------------------------------------------------------ *)
-(* STEP 3: Build pair lookup table from an arrangement          *)
-(* ------------------------------------------------------------ *)
-
-buildPairsTable[edges_, arrangement_] := Module[{table, pos1, pos2, item1, item2},
-  table = Table[False, {numItems}, {numItems}];
-  For[e = 1, e <= Length[edges], e++,
-    pos1 = edges[[e, 1]];
-    pos2 = edges[[e, 2]];
-    item1 = arrangement[[pos1 + 1]];
-    item2 = arrangement[[pos2 + 1]];
-    table[[item1, item2]] = True;
-    table[[item2, item1]] = True;
-  ];
-  table
+(* Helper: get pairs from arrangement *)
+getPairs[edges_, arrangement_] := Module[{pairs},
+  pairs = Table[False, {numItems}, {numItems}];
+  Do[
+    item1 = arrangement[[edges[[e, 1]] + 1]];
+    item2 = arrangement[[edges[[e, 2]] + 1]];
+    pairs[[item1, item2]] = True;
+    pairs[[item2, item1]] = True;
+  , {e, Length[edges]}];
+  pairs
 ];
 
-(* ------------------------------------------------------------ *)
-(* STEP 4: Search for valid arrangements                        *)
-(* ------------------------------------------------------------ *)
-
-(* All 78 pairs of items *)
-allPairs = Flatten[Table[{i, j}, {i, 1, numItems - 1}, {j, i + 1, numItems}], 1];
-
-(* Identity arrangement *)
-identityPerm = Range[numItems];
-
+globalStart = AbsoluteTime[];
 foundSolution = False;
-totalCombinations = 0;
-totalArr1Found = 0;
+solutionCombo = {};
+solutionArr1 = {};
+solutionArr2 = {};
 
-Print["============================================"];
-Print["SEARCHING ALL GRAPH COMBINATIONS"];
-Print["============================================"];
-Print[""];
-
-(* For each graph triple (g0, g1, g2) *)
-For[g0 = 1, g0 <= numGraphs, g0++,
+(* Main loop over 20 combinations *)
+For[ci = 1, ci <= Length[combos], ci++,
   If[foundSolution, Break[]];
 
-  graph0 = allGraphs[[g0]];
-  neighbors0 = allNeighbors[[g0]];
+  s0 = combos[[ci, 1]];
+  s1 = combos[[ci, 2]];
+  s2 = combos[[ci, 3]];
 
-  (* Fix arr0 = identity on graph0 *)
-  pairs0Table = buildPairsTable[graph0, identityPerm];
+  comboName = graphNames[[s0]] <> graphNames[[s1]] <> graphNames[[s2]];
+  Print["[", ci, "/20] ", comboName, " ..."];
+  comboStart = AbsoluteTime[];
 
-  For[g1 = 1, g1 <= numGraphs, g1++,
+  edges0 = allGraphEdges[[s0]];
+  edges1 = allGraphEdges[[s1]];
+  edges2 = allGraphEdges[[s2]];
+  neighbors1 = buildNeighbors[edges1];
+  neighbors2 = buildNeighbors[edges2];
+
+  (* arr0 = identity on shape0 *)
+  arr0 = Range[numItems];
+  pairs0 = getPairs[edges0, arr0];
+
+  (* Search for arr1 on shape1 with zero overlap *)
+  arr1 = Table[0, {numItems}];
+  used1 = Table[False, {numItems}];
+  validArr1List = {};
+  nodesExplored = 0;
+
+  searchArr1[pos_] := Module[{item, nPos, nItem, hasOverlap},
+    If[foundSolution, Return[]];
+
+    nodesExplored++;
+
+    If[pos == numItems,
+      AppendTo[validArr1List, Table[arr1[[k]], {k, numItems}]];
+      Return[];
+    ];
+
+    Do[
+      If[used1[[item]], Continue[]];
+
+      arr1[[pos + 1]] = item;
+      used1[[item]] = True;
+
+      hasOverlap = False;
+      Do[
+        nPos = neighbors1[[pos + 1, k]];
+        If[nPos < pos,
+          nItem = arr1[[nPos + 1]];
+          If[pairs0[[item, nItem]],
+            hasOverlap = True;
+            Break[];
+          ];
+        ];
+      , {k, Length[neighbors1[[pos + 1]]]}];
+
+      If[Not[hasOverlap], searchArr1[pos + 1]];
+
+      arr1[[pos + 1]] = 0;
+      used1[[item]] = False;
+    , {item, numItems}];
+  ];
+
+  searchArr1[0];
+
+  Print["  Found ", Length[validArr1List], " arr1 candidates (", nodesExplored, " nodes, ",
+        Round[AbsoluteTime[] - comboStart, 0.1], "s)"];
+
+  (* For each arr1, search for arr2 on shape2 *)
+  Do[
     If[foundSolution, Break[]];
 
-    graph1 = allGraphs[[g1]];
-    neighbors1 = allNeighbors[[g1]];
+    currentArr1 = validArr1List[[ai]];
+    pairs1 = getPairs[edges1, currentArr1];
 
-    (* Search for arr1 with zero overlap with arr0 *)
-    arr1 = Table[0, {numItems}];
-    used1 = Table[False, {numItems}];
-    validArr1List = {};
+    (* Compute needed pairs *)
+    neededTable = Table[False, {numItems}, {numItems}];
+    neededCount = 0;
+    Do[
+      If[Not[pairs0[[i, j]]] && Not[pairs1[[i, j]]],
+        neededTable[[i, j]] = True;
+        neededTable[[j, i]] = True;
+        neededCount++;
+      ];
+    , {i, numItems - 1}, {j, i + 1, numItems}];
 
-    searchArr1[pos_] := Module[{item, nPos, nItem, hasOverlap},
-      If[pos == numItems,
-        AppendTo[validArr1List, arr1];
+    If[neededCount != numEdges, Continue[]];
+
+    (* Search arr2 *)
+    arr2 = Table[0, {numItems}];
+    used2 = Table[False, {numItems}];
+    foundArr2 = False;
+    pairsCovered = 0;
+
+    searchArr2[pos2_] := Module[{item2, nPos2, nItem2, isWaste, newPairs},
+      If[foundArr2, Return[]];
+
+      If[pos2 == numItems,
+        If[pairsCovered == numEdges, foundArr2 = True];
         Return[];
       ];
 
-      For[item = 1, item <= numItems, item++,
-        If[used1[[item]], Continue[]];
+      Do[
+        If[used2[[item2]], Continue[]];
 
-        arr1[[pos + 1]] = item;
-        used1[[item]] = True;
+        arr2[[pos2 + 1]] = item2;
+        used2[[item2]] = True;
 
-        hasOverlap = False;
-        For[k = 1, k <= Length[neighbors1[[pos + 1]]], k++,
-          nPos = neighbors1[[pos + 1, k]];
-          If[nPos < pos,
-            nItem = arr1[[nPos + 1]];
-            If[pairs0Table[[item, nItem]],
-              hasOverlap = True;
+        isWaste = False;
+        newPairs = 0;
+
+        Do[
+          nPos2 = neighbors2[[pos2 + 1, k]];
+          If[nPos2 < pos2,
+            nItem2 = arr2[[nPos2 + 1]];
+            If[neededTable[[item2, nItem2]],
+              newPairs++;
+            ,
+              isWaste = True;
               Break[];
             ];
           ];
+        , {k, Length[neighbors2[[pos2 + 1]]]}];
+
+        If[Not[isWaste],
+          pairsCovered = pairsCovered + newPairs;
+          searchArr2[pos2 + 1];
+          pairsCovered = pairsCovered - newPairs;
         ];
 
-        If[Not[hasOverlap],
-          searchArr1[pos + 1];
-        ];
-
-        arr1[[pos + 1]] = 0;
-        used1[[item]] = False;
-      ];
+        arr2[[pos2 + 1]] = 0;
+        used2[[item2]] = False;
+      , {item2, numItems}];
     ];
 
-    searchArr1[0];
+    searchArr2[0];
 
-    If[Length[validArr1List] > 0,
-      Print["Graphs (", g0, ",", g1, "): found ", Length[validArr1List], " valid arr1"];
-      totalArr1Found = totalArr1Found + Length[validArr1List];
-
-      (* For each valid arr1, try each graph2 *)
-      For[a1Idx = 1, a1Idx <= Length[validArr1List], a1Idx++,
-        If[foundSolution, Break[]];
-
-        currentArr1 = validArr1List[[a1Idx]];
-        pairs1Table = buildPairsTable[graph1, currentArr1];
-
-        (* Combine pairs from arr0 and arr1 *)
-        coveredTable = Table[False, {numItems}, {numItems}];
-        For[i = 1, i <= numItems, i++,
-          For[j = 1, j <= numItems, j++,
-            coveredTable[[i, j]] = pairs0Table[[i, j]] || pairs1Table[[i, j]];
-          ];
-        ];
-
-        (* Pairs still needed *)
-        stillNeeded = {};
-        For[p = 1, p <= Length[allPairs], p++,
-          item1 = allPairs[[p, 1]];
-          item2 = allPairs[[p, 2]];
-          If[Not[coveredTable[[item1, item2]]],
-            AppendTo[stillNeeded, {item1, item2}];
-          ];
-        ];
-
-        (* Try each graph for arr2 *)
-        For[g2 = 1, g2 <= numGraphs, g2++,
-          If[foundSolution, Break[]];
-
-          totalCombinations++;
-
-          graph2 = allGraphs[[g2]];
-          neighbors2 = allNeighbors[[g2]];
-
-          (* arr2 must cover exactly stillNeeded (26 pairs) with no waste *)
-          neededTable = Table[False, {numItems}, {numItems}];
-          For[p = 1, p <= Length[stillNeeded], p++,
-            item1 = stillNeeded[[p, 1]];
-            item2 = stillNeeded[[p, 2]];
-            neededTable[[item1, item2]] = True;
-            neededTable[[item2, item1]] = True;
-          ];
-
-          arr2 = Table[0, {numItems}];
-          used2 = Table[False, {numItems}];
-          foundArr2 = False;
-          pairsCovered = 0;
-
-          searchArr2[pos2_] := Module[{item, nPos, nItem, isWaste, newPairs},
-            If[foundArr2, Return[]];
-
-            If[pos2 == numItems,
-              If[pairsCovered == Length[stillNeeded],
-                foundArr2 = True;
-              ];
-              Return[];
-            ];
-
-            For[item = 1, item <= numItems, item++,
-              If[used2[[item]], Continue[]];
-
-              arr2[[pos2 + 1]] = item;
-              used2[[item]] = True;
-
-              isWaste = False;
-              newPairs = 0;
-
-              For[k = 1, k <= Length[neighbors2[[pos2 + 1]]], k++,
-                nPos = neighbors2[[pos2 + 1, k]];
-                If[nPos < pos2,
-                  nItem = arr2[[nPos + 1]];
-                  If[neededTable[[item, nItem]],
-                    newPairs++;
-                  ,
-                    isWaste = True;
-                    Break[];
-                  ];
-                ];
-              ];
-
-              If[Not[isWaste],
-                pairsCovered = pairsCovered + newPairs;
-                searchArr2[pos2 + 1];
-                pairsCovered = pairsCovered - newPairs;
-              ];
-
-              arr2[[pos2 + 1]] = 0;
-              used2[[item]] = False;
-            ];
-          ];
-
-          searchArr2[0];
-
-          If[foundArr2,
-            Print[""];
-            Print["*** FOUND A SOLUTION! ***"];
-            Print["Graph triple: (", g0, ", ", g1, ", ", g2, ")"];
-            Print["arr0 = ", identityPerm];
-            Print["arr1 = ", currentArr1];
-            Print["arr2 = ", arr2];
-            foundSolution = True;
-          ];
-        ];
-      ];
+    If[foundArr2,
+      foundSolution = True;
+      solutionCombo = {s0, s1, s2};
+      solutionArr1 = currentArr1;
+      solutionArr2 = Table[arr2[[k]], {k, numItems}];
     ];
-  ];
 
-  Print["Completed graph0 = ", g0, " / ", numGraphs];
+    If[Mod[ai, 100] == 0,
+      Print["    Checked ", ai, "/", Length[validArr1List], " arr1..."];
+    ];
+  , {ai, Length[validArr1List]}];
+
+  Print["  ", comboName, " done in ", Round[AbsoluteTime[] - comboStart, 0.1], "s"];
+  Print[""];
 ];
 
-(* ------------------------------------------------------------ *)
-(* STEP 5: Final result                                         *)
-(* ------------------------------------------------------------ *)
-
-Print[""];
+(* Result *)
 Print["============================================"];
-Print["FINAL RESULT"];
+Print["RESULT"];
 Print["============================================"];
 Print[""];
-Print["Total graph combinations tested: ", numGraphs, "^3 = 64"];
-Print["Total valid arr1 arrangements found: ", totalArr1Found];
-Print["Total (arr0, arr1, g2) triples checked: ", totalCombinations];
+Print["Total time: ", Round[AbsoluteTime[] - globalStart, 0.1], "s"];
 Print[""];
 
 If[foundSolution,
-  Print["3 arrangements ARE sufficient for n = 13."];
+  Print["*** FOUND SOLUTION! ***"];
+  Print["Shapes: ", graphNames[[solutionCombo[[1]]]], graphNames[[solutionCombo[[2]]]], graphNames[[solutionCombo[[3]]]]];
+  Print["arr0 = ", Range[numItems]];
+  Print["arr1 = ", solutionArr1];
+  Print["arr2 = ", solutionArr2];
 ,
-  Print["3 arrangements are NOT sufficient for n = 13."];
-  Print[""];
-  Print["We tested ALL 4 maximal penny graphs in every position"];
-  Print["(arr0, arr1, arr2) and found no valid 3-arrangement."];
-  Print[""];
-  Print["CONCLUSION: n = 13 requires at least 4 arrangements."];
+  Print["No solution found."];
+  Print["3 arrangements are NOT sufficient for n=13."];
+  Print["CONCLUSION: n=13 requires at least 4 arrangements."];
 ];
