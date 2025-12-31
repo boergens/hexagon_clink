@@ -1,0 +1,28 @@
+# Binaries
+canonicalize
+filter_maximal
+generate_edges
+pipeline_nauty
+refine_hash
+verify_penny
+wl_refine
+explore_nauty/convert
+explore_nauty/bench_*
+explore_nauty/compare_all
+
+# Data files
+*.bin
+*.g6
+!explore_nauty/*_penny.g6
+!explore_nauty/*_unique.g6
+
+# Temp and output
+tmp_nauty/
+*.log
+test_*.g6
+
+# System
+.DS_Store
+
+# Other projects
+find_fourth/
