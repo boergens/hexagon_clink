@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -78,17 +80,19 @@ func buildSpiral(n int) []Edge {
 }
 
 type Solver struct {
-	n, k      int
-	numPairs  int
-	numEdges  int
-	edges     []Edge
-	slotAdj   [][]int
-	remEdges  []int
-	pairTable [][]int
+	n, k          int
+	numPairs      int
+	numEdges      int
+	edges         []Edge
+	slotAdj       [][]int
+	remEdges      []int
+	pairTable     [][]int
+	maxOverlapArr []int // per-level overlap limits, nil means use dynamic calculation
 
-	solution [][]int
-	found    int32
-	mu       sync.Mutex
+	solution      [][]int
+	found         int32
+	printedLevel  []int32 // track if we've printed first solution at each level
+	mu            sync.Mutex
 }
 
 func NewSolver(n, k int) *Solver {
@@ -127,20 +131,25 @@ func NewSolver(n, k int) *Solver {
 	}
 
 	return &Solver{
-		n:         n,
-		k:         k,
-		numPairs:  n * (n - 1) / 2,
-		numEdges:  len(edges),
-		edges:     edges,
-		slotAdj:   slotAdj,
-		remEdges:  remEdges,
-		pairTable: pairTable,
-		solution:  make([][]int, k),
+		n:            n,
+		k:            k,
+		numPairs:     n * (n - 1) / 2,
+		numEdges:     len(edges),
+		edges:        edges,
+		slotAdj:      slotAdj,
+		remEdges:     remEdges,
+		pairTable:    pairTable,
+		solution:     make([][]int, k),
+		printedLevel: make([]int32, k),
 	}
 }
 
 func (s *Solver) pairIndex(a, b int) int {
 	return s.pairTable[a][b]
+}
+
+func (s *Solver) SetMaxOverlap(limits []int) {
+	s.maxOverlapArr = limits
 }
 
 func (s *Solver) solve(level int, covered []bool, coveredCount int, parentArrs [][]int, rng *rand.Rand) {
@@ -155,8 +164,14 @@ func (s *Solver) solve(level int, covered []bool, coveredCount int, parentArrs [
 		return
 	}
 
-	minNewEdges := (missing + remaining - 1) / remaining
-	maxOverlap := s.numEdges - minNewEdges
+	// Calculate max overlap: use explicit limit if provided, otherwise dynamic
+	var maxOverlap int
+	if s.maxOverlapArr != nil && level < len(s.maxOverlapArr) {
+		maxOverlap = s.maxOverlapArr[level]
+	} else {
+		minNewEdges := (missing + remaining - 1) / remaining
+		maxOverlap = s.numEdges - minNewEdges
+	}
 
 	arr := make([]int, s.n)
 	used := make([]bool, s.n)
@@ -189,6 +204,13 @@ func (s *Solver) solve(level int, covered []bool, coveredCount int, parentArrs [
 			copy(coveredCopy, coveredSet)
 
 			newParentArrs := append(parentArrs, arrCopy)
+
+			// Print first valid arrangement at this level
+			if atomic.CompareAndSwapInt32(&s.printedLevel[level], 0, 1) {
+				newEdges := localCovered - coveredCount
+				fmt.Printf("First valid arr%d: %v (overlap=%d, new=%d, covered=%d/%d)\n",
+					level+1, arrCopy, s.numEdges-newEdges, newEdges, localCovered, s.numPairs)
+			}
 
 			if level == s.k-2 {
 				if localCovered == s.numPairs {
@@ -310,15 +332,43 @@ func (s *Solver) Solve(numWorkers int) bool {
 	return atomic.LoadInt32(&s.found) != 0
 }
 
+func parseOverlapLimits(s string) ([]int, error) {
+	if s == "" {
+		return nil, nil
+	}
+	parts := strings.Split(s, ",")
+	limits := make([]int, len(parts))
+	for i, p := range parts {
+		v, err := strconv.Atoi(strings.TrimSpace(p))
+		if err != nil {
+			return nil, fmt.Errorf("invalid overlap limit %q: %v", p, err)
+		}
+		limits[i] = v
+	}
+	return limits, nil
+}
+
 func main() {
 	n := flag.Int("n", 17, "Number of items")
 	k := flag.Int("k", 4, "Number of arrangements")
 	workers := flag.Int("workers", 8, "Number of parallel workers")
+	maxOverlap := flag.String("max-overlap", "", "Comma-separated max overlap per level (e.g., '5,5,5' for k=4)")
 	flag.Parse()
 
 	fmt.Printf("Searching for %d arrangements of %d items\n", *k, *n)
 
 	solver := NewSolver(*n, *k)
+
+	overlapLimits, err := parseOverlapLimits(*maxOverlap)
+	if err != nil {
+		fmt.Printf("Error parsing max-overlap: %v\n", err)
+		return
+	}
+	if overlapLimits != nil {
+		solver.SetMaxOverlap(overlapLimits)
+		fmt.Printf("Max overlap limits: %v\n", overlapLimits)
+	}
+
 	fmt.Printf("Edges per arrangement: %d, Total pairs: %d\n", solver.numEdges, solver.numPairs)
 	fmt.Printf("Lower bound: ceil(%d/%d) = %d arrangements\n",
 		solver.numPairs, solver.numEdges, (solver.numPairs+solver.numEdges-1)/solver.numEdges)
